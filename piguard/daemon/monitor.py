@@ -72,6 +72,10 @@ import time
 last_net_rx = 0
 last_net_tx = 0
 last_net_time = 0
+last_net_drops_rx = 0
+last_net_drops_tx = 0
+last_net_errs_rx = 0
+last_net_errs_tx = 0
 
 def get_network_io():
     """
@@ -128,14 +132,6 @@ def get_network_io():
     tx_drops_rate = 0.0
     rx_errors_rate = 0.0
     tx_errors_rate = 0.0
-
-    # Initialize these globals if they don't exist
-    if 'last_net_drops_rx' not in globals():
-        global last_net_drops_rx, last_net_drops_tx, last_net_errs_rx, last_net_errs_tx
-        last_net_drops_rx = drops_rx
-        last_net_drops_tx = drops_tx
-        last_net_errs_rx = errors_rx
-        last_net_errs_tx = errors_tx
 
     if last_net_time > 0 and current_time > last_net_time:
         time_diff = current_time - last_net_time
