@@ -30,6 +30,10 @@ def main():
     last_cache_drop_time = 0
     cache_drop_cooldown = 30 # 30 seconds
 
+    last_net_warn_time = 0
+    last_storage_warn_time = {}
+    warning_cooldown = 60 # 1 minute cooldown for spammy warnings
+
     while True:
         try:
             free_ram_percent, free_kb, total_kb, swap_used, swap_total = get_ram_usage()
@@ -37,19 +41,26 @@ def main():
 
             logger.log(f"Metrics - RAM Free: {free_ram_percent:.2f}% ({free_kb}KB / {total_kb}KB), CPU Temp: {cpu_temp:.1f}C")
 
+            now = time.time()
+
             # Check for network anomalies
             net = get_network_io()
-            # Log only if there's an active rate of drops (>0 drops per second)
-            if net.get('rx_drops_rate', 0) > 0 or net.get('tx_drops_rate', 0) > 0:
-                logger.log(f"[NETWORK WARNING] Interface dropping packets (Rx/s: {net.get('rx_drops_rate', 0):.1f}, Tx/s: {net.get('tx_drops_rate', 0):.1f})")
+            # Log only if there's a significant rate of drops (>10 drops per second) to avoid background noise spam
+            rx_drops = net.get('rx_drops_rate', 0)
+            tx_drops = net.get('tx_drops_rate', 0)
+            if rx_drops > 10.0 or tx_drops > 10.0:
+                if now - last_net_warn_time > warning_cooldown:
+                    logger.log(f"[NETWORK WARNING] High interface packet drop rate (Rx/s: {rx_drops:.1f}, Tx/s: {tx_drops:.1f})")
+                    last_net_warn_time = now
 
             # Check for storage anomalies
             disks = get_disk_metrics()
             for dev, stats in disks.items():
                 if stats['utilization'] >= 95.0:
-                    logger.log(f"[STORAGE WARNING] Drive /dev/{dev} reached {stats['utilization']:.1f}% I/O utilization - Latency spike predicted")
-
-            now = time.time()
+                    last_warn = last_storage_warn_time.get(dev, 0)
+                    if now - last_warn > warning_cooldown:
+                        logger.log(f"[STORAGE WARNING] Drive /dev/{dev} reached {stats['utilization']:.1f}% I/O utilization - Latency spike predicted")
+                        last_storage_warn_time[dev] = now
 
             # Level 1: RAM < 10% -> Drop caches
             if free_ram_percent < drop_threshold:
