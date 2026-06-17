@@ -1,0 +1,16 @@
+{
+    "ram_cache_drop_threshold_percent": 10.0,
+    "ram_remediation_threshold_percent": 5.0,
+    "cpu_temp_threshold_celsius": 85.0,
+    "whitelist_services": [
+        "ssh.service",
+        "sshd.service",
+        "networking.service",
+        "systemd-networkd.service",
+        "docker.service",
+        "piguard.service"
+    ],
+    "whitelist_containers": [],
+    "priority_services_to_kill": [],
+    "priority_containers_to_kill": []
+}
