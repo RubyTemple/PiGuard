@@ -13,7 +13,10 @@ echo "Stopping PiGuard service..."
 systemctl stop piguard.service || true
 
 echo "Updating daemon files..."
-cp -r daemon/* /opt/piguard/
+# Remove old daemon files to ensure no deleted files linger
+rm -rf /opt/piguard/daemon
+# Copy new files preserving structure
+cp -r daemon /opt/piguard/
 
 echo "Restarting PiGuard service..."
 systemctl daemon-reload
