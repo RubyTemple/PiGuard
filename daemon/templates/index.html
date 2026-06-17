@@ -165,10 +165,10 @@
                             <tr>
                                 <th class="pb-2 font-medium" data-i18n="th_name">Name</th>
                                 <th class="pb-2 font-medium" data-i18n="th_type">Type</th>
-                                <th class="pb-2 font-medium text-right cursor-pointer hover:text-emerald-400" onclick="setSort('cpu')">CPU% <i data-lucide="arrow-down-wide-narrow" class="inline w-3 h-3 sort-icon-cpu hidden"></i></th>
-                                <th class="pb-2 font-medium text-right cursor-pointer hover:text-emerald-400" onclick="setSort('ram')">RAM <i data-lucide="arrow-down-wide-narrow" class="inline w-3 h-3 sort-icon-ram hidden"></i></th>
-                                <th class="pb-2 font-medium text-right cursor-pointer hover:text-emerald-400" onclick="setSort('disk')" data-i18n="th_disk">Disk I/O <i data-lucide="arrow-down-wide-narrow" class="inline w-3 h-3 sort-icon-disk hidden"></i></th>
-                                <th class="pb-2 font-medium text-right cursor-pointer hover:text-emerald-400" onclick="setSort('net')" data-i18n="th_net">Net I/O <i data-lucide="arrow-down-wide-narrow" class="inline w-3 h-3 sort-icon-net hidden"></i></th>
+                                <th class="pb-2 font-medium text-right cursor-pointer hover:text-emerald-400" onclick="setSort('cpu')">CPU% <span class="inline-block w-3 h-3 ml-1 sort-icon-cpu hidden" data-lucide="arrow-down-wide-narrow"></span></th>
+                                <th class="pb-2 font-medium text-right cursor-pointer hover:text-emerald-400" onclick="setSort('ram')">RAM <span class="inline-block w-3 h-3 ml-1 sort-icon-ram hidden" data-lucide="arrow-down-wide-narrow"></span></th>
+                                <th class="pb-2 font-medium text-right cursor-pointer hover:text-emerald-400" onclick="setSort('disk')" data-i18n="th_disk">Disk I/O <span class="inline-block w-3 h-3 ml-1 sort-icon-disk hidden" data-lucide="arrow-down-wide-narrow"></span></th>
+                                <th class="pb-2 font-medium text-right cursor-pointer hover:text-emerald-400" onclick="setSort('net')" data-i18n="th_net">Net I/O <span class="inline-block w-3 h-3 ml-1 sort-icon-net hidden" data-lucide="arrow-down-wide-narrow"></span></th>
                             </tr>
                         </thead>
                         <tbody id="process-table" class="font-mono text-xs divide-y divide-slate-800/60">
@@ -437,12 +437,28 @@
         }
 
         let currentSort = 'ram';
+        let sortDesc = true;
         function setSort(sortType) {
-            currentSort = sortType;
+            if (currentSort === sortType) {
+                sortDesc = !sortDesc;
+            } else {
+                currentSort = sortType;
+                sortDesc = true;
+            }
+
             // Update icons
-            document.querySelectorAll('.sort-icon-cpu, .sort-icon-ram, .sort-icon-disk, .sort-icon-net').forEach(el => el.classList.add('hidden'));
-            const icon = document.querySelector(`.sort-icon-${sortType}`);
-            if (icon) icon.classList.remove('hidden');
+            document.querySelectorAll('.sort-icon-cpu, .sort-icon-ram, .sort-icon-disk, .sort-icon-net').forEach(el => {
+                el.classList.add('hidden');
+                // Remove lucide icons from elements so we can replace them
+                const svg = el.querySelector('svg');
+                if (svg) svg.remove();
+            });
+            const iconSpan = document.querySelector(`.sort-icon-${sortType}`);
+            if (iconSpan) {
+                iconSpan.classList.remove('hidden');
+                iconSpan.setAttribute('data-lucide', sortDesc ? 'arrow-down-wide-narrow' : 'arrow-up-narrow-wide');
+                lucide.createIcons();
+            }
             fetchProcesses(); // Re-fetch/re-render immediately
         }
 
@@ -456,24 +472,26 @@
 
                 let procs = data.processes;
                 procs.sort((a, b) => {
+                    let result = 0;
                     if (currentSort === 'disk') {
                         let ioA = parseDiskIo(a.disk_io);
                         let ioB = parseDiskIo(b.disk_io);
-                        if (ioB !== ioA) return ioB - ioA;
+                        result = ioA - ioB;
                     } else if (currentSort === 'net') {
                         let netA = parseDiskIo(a.net_io);
                         let netB = parseDiskIo(b.net_io);
-                        if (netB !== netA) return netB - netA;
+                        result = netA - netB;
                     } else if (currentSort === 'cpu') {
                         let cpuA = a.cpu_percent || 0;
                         let cpuB = b.cpu_percent || 0;
-                        if (cpuB !== cpuA) return cpuB - cpuA;
+                        result = cpuA - cpuB;
+                    } else {
+                        // Default fallback or 'ram' sorting
+                        let memA = a.mem_bytes || (a.mem_percent * 10000) || 0;
+                        let memB = b.mem_bytes || (b.mem_percent * 10000) || 0;
+                        result = memA - memB;
                     }
-
-                    // Default fallback or 'ram' sorting
-                    let memA = a.mem_bytes || (a.mem_percent * 10000) || 0;
-                    let memB = b.mem_bytes || (b.mem_percent * 10000) || 0;
-                    return memB - memA;
+                    return sortDesc ? -result : result;
                 });
 
                 procs.slice(0, 15).forEach(p => {
@@ -589,9 +607,9 @@
         }
 
         // Loop
-        setInterval(fetchMetrics, 2000);
-        setInterval(fetchProcesses, 5000);
-        setInterval(fetchLogs, 3000);
+        setInterval(fetchMetrics, 1000);
+        setInterval(fetchProcesses, 1000);
+        setInterval(fetchLogs, 1000);
 
         // Initial setup and fetch
         applyTranslations();

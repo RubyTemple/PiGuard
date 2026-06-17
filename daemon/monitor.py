@@ -484,15 +484,8 @@ def get_top_os_processes():
                 except Exception:
                     pass
 
-                # Fallback: check mountinfo for overlay/containers to catch hidden containers
-                if not is_docker:
-                    try:
-                        with open(f'/proc/{pid}/mountinfo', 'r') as f:
-                            mountinfo = f.read()
-                            if '/docker/overlay' in mountinfo or '/containers/overlay' in mountinfo or 'containerd/io' in mountinfo:
-                                is_docker = True
-                    except Exception:
-                        pass
+                # We do not use mountinfo fallback because on host OS, mountinfo of OS processes
+                # will contain docker overlays since the host sees all mounts, falsely flagging everything.
 
                 if is_docker:
                     continue
