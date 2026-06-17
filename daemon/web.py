@@ -56,10 +56,13 @@ def api_metrics():
 @app.route('/api/processes')
 def api_processes():
     dockers = get_top_docker_processes()
-    # User requested: "Top Processes mostra solo i docker non tutti i processi più pesanti in generale."
-    # So we ONLY return dockers for the web dashboard list, even though the backend monitors OS procs for remediation.
+    os_procs = get_top_os_processes()
 
-    return jsonify({'processes': dockers})
+    # For a unified list, combine and sort by mem_percent
+    all_procs = dockers + os_procs
+    all_procs.sort(key=lambda x: x.get('mem_percent', 0), reverse=True)
+
+    return jsonify({'processes': all_procs[:15]})
 
 @app.route('/api/logs')
 def api_logs():

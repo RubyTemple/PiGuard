@@ -133,30 +133,56 @@ def get_network_io():
     rx_errors_rate = 0.0
     tx_errors_rate = 0.0
 
+    # To fix concurrency bug between web polling and daemon loop:
+    # Only update deltas if enough time has passed (e.g. > 1 sec) or if it's the daemon doing it.
+    # A cleaner approach for this specific bug is to not update `last_*` states if the time diff is too small,
+    # or just use a small window.
     if last_net_time > 0 and current_time > last_net_time:
         time_diff = current_time - last_net_time
-        rx_bps = (current_rx - last_net_rx) / time_diff
-        tx_bps = (current_tx - last_net_tx) / time_diff
-        rx_drops_rate = (drops_rx - last_net_drops_rx) / time_diff
-        tx_drops_rate = (drops_tx - last_net_drops_tx) / time_diff
-        rx_errors_rate = (errors_rx - last_net_errs_rx) / time_diff
-        tx_errors_rate = (errors_tx - last_net_errs_tx) / time_diff
+        if time_diff >= 1.0:
+            rx_bps = (current_rx - last_net_rx) / time_diff
+            tx_bps = (current_tx - last_net_tx) / time_diff
+            rx_drops_rate = (drops_rx - last_net_drops_rx) / time_diff
+            tx_drops_rate = (drops_tx - last_net_drops_tx) / time_diff
+            rx_errors_rate = (errors_rx - last_net_errs_rx) / time_diff
+            tx_errors_rate = (errors_tx - last_net_errs_tx) / time_diff
 
-    last_net_rx = current_rx
-    last_net_drops_rx = drops_rx
-    last_net_drops_tx = drops_tx
-    last_net_errs_rx = errors_rx
-    last_net_errs_tx = errors_tx
-    last_net_tx = current_tx
-    last_net_time = current_time
+            # Update state ONLY when we calculate new rates
+            last_net_rx = current_rx
+            last_net_tx = current_tx
+            last_net_drops_rx = drops_rx
+            last_net_drops_tx = drops_tx
+            last_net_errs_rx = errors_rx
+            last_net_errs_tx = errors_tx
+            last_net_time = current_time
+
+            # Store these globally so if time_diff < 1.0 we return cached
+            global cached_net_stats
+            cached_net_stats = {
+                'rx_bps': max(0.0, rx_bps),
+                'tx_bps': max(0.0, tx_bps),
+                'rx_drops_rate': max(0.0, rx_drops_rate),
+                'tx_drops_rate': max(0.0, tx_drops_rate),
+                'rx_errors_rate': max(0.0, rx_errors_rate),
+                'tx_errors_rate': max(0.0, tx_errors_rate)
+            }
+            return cached_net_stats
+        else:
+            # Return cached if polled too soon (concurrent access)
+            if 'cached_net_stats' in globals():
+                return cached_net_stats
+    else:
+        # Initial run
+        last_net_rx = current_rx
+        last_net_tx = current_tx
+        last_net_drops_rx = drops_rx
+        last_net_drops_tx = drops_tx
+        last_net_errs_rx = errors_rx
+        last_net_errs_tx = errors_tx
+        last_net_time = current_time
 
     return {
-        'rx_bps': max(0.0, rx_bps),
-        'tx_bps': max(0.0, tx_bps),
-        'rx_drops_rate': max(0.0, rx_drops_rate),
-        'tx_drops_rate': max(0.0, tx_drops_rate),
-        'rx_errors_rate': max(0.0, rx_errors_rate),
-        'tx_errors_rate': max(0.0, tx_errors_rate)
+        'rx_bps': 0.0, 'tx_bps': 0.0, 'rx_drops_rate': 0.0, 'tx_drops_rate': 0.0, 'rx_errors_rate': 0.0, 'tx_errors_rate': 0.0
     }
 
 last_diskstats = {}
@@ -239,44 +265,60 @@ def get_disk_metrics():
     if last_disk_time > 0 and current_time > last_disk_time:
         time_diff = current_time - last_disk_time
 
-        for dev, stats in current_stats.items():
-            if dev in last_diskstats:
-                last = last_diskstats[dev]
+        if time_diff >= 1.0:
+            for dev, stats in current_stats.items():
+                if dev in last_diskstats:
+                    last = last_diskstats[dev]
 
-                d_reads = stats['reads'] - last['reads']
-                d_writes = stats['writes'] - last['writes']
-                d_sect_read = stats['sectors_read'] - last['sectors_read']
-                d_sect_write = stats['sectors_written'] - last['sectors_written']
-                d_ticks = stats['io_ticks'] - last['io_ticks']
+                    d_reads = stats['reads'] - last['reads']
+                    d_writes = stats['writes'] - last['writes']
+                    d_sect_read = stats['sectors_read'] - last['sectors_read']
+                    d_sect_write = stats['sectors_written'] - last['sectors_written']
+                    d_ticks = stats['io_ticks'] - last['io_ticks']
 
-                iops = (d_reads + d_writes) / time_diff
-                read_bps = (d_sect_read * 512) / time_diff
-                write_bps = (d_sect_write * 512) / time_diff
-                # Utilization = (io_ticks delta in ms) / (time delta in ms) * 100
-                utilization = min(100.0, (d_ticks / (time_diff * 1000.0)) * 100.0)
+                    iops = (d_reads + d_writes) / time_diff
+                    read_bps = (d_sect_read * 512) / time_diff
+                    write_bps = (d_sect_write * 512) / time_diff
+                    # Utilization = (io_ticks delta in ms) / (time delta in ms) * 100
+                    utilization = min(100.0, (d_ticks / (time_diff * 1000.0)) * 100.0)
 
-                metrics[dev] = {
-                    'read_bps': max(0.0, read_bps),
-                    'write_bps': max(0.0, write_bps),
-                    'iops': max(0.0, iops),
-                    'queue_length': stats['queue'],
-                    'utilization': max(0.0, utilization)
-                }
+                    metrics[dev] = {
+                        'read_bps': max(0.0, read_bps),
+                        'write_bps': max(0.0, write_bps),
+                        'iops': max(0.0, iops),
+                        'queue_length': stats['queue'],
+                        'utilization': max(0.0, utilization)
+                    }
+                else:
+                    # First time seeing this disk
+                    metrics[dev] = {
+                        'read_bps': 0.0, 'write_bps': 0.0, 'iops': 0.0,
+                        'queue_length': stats['queue'], 'utilization': 0.0
+                    }
+
+            last_diskstats = current_stats
+            last_disk_time = current_time
+
+            global cached_disk_stats
+            cached_disk_stats = metrics
+            return metrics
+        else:
+            if 'cached_disk_stats' in globals():
+                # We also need to update queue length from current even if returning cached
+                for dev in cached_disk_stats:
+                    if dev in current_stats:
+                        cached_disk_stats[dev]['queue_length'] = current_stats[dev]['queue']
+                return cached_disk_stats
             else:
-                # First time seeing this disk
-                metrics[dev] = {
-                    'read_bps': 0.0, 'write_bps': 0.0, 'iops': 0.0,
-                    'queue_length': stats['queue'], 'utilization': 0.0
-                }
+                return {}
     else:
         for dev, stats in current_stats.items():
              metrics[dev] = {
                     'read_bps': 0.0, 'write_bps': 0.0, 'iops': 0.0,
                     'queue_length': stats['queue'], 'utilization': 0.0
                 }
-
-    last_diskstats = current_stats
-    last_disk_time = current_time
+        last_diskstats = current_stats
+        last_disk_time = current_time
 
     return metrics
 

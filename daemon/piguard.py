@@ -39,8 +39,6 @@ def main():
             free_ram_percent, free_kb, total_kb, swap_used, swap_total = get_ram_usage()
             cpu_temp = get_cpu_temp()
 
-            logger.log(f"Metrics - RAM Free: {free_ram_percent:.2f}% ({free_kb}KB / {total_kb}KB), CPU Temp: {cpu_temp:.1f}C")
-
             now = time.time()
 
             # Check for network anomalies

@@ -134,68 +134,59 @@
             </div>
         </div>
 
-        <!-- Main Content Area: Left (Charts/Procs) and Right (Flight Log) -->
-        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <!-- Main Content Area: Charts & Processes -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
 
-            <!-- Left Side: Analytics & Processes (Spans 3 cols) -->
-            <div class="lg:col-span-3 space-y-6">
-
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <!-- Left: Chart & MergerFS Physical Storage Matrix -->
-                    <div class="lg:col-span-1 space-y-6 flex flex-col">
-                        <div class="card rounded-lg p-5 flex-shrink-0 h-48 flex flex-col">
-                            <h2 class="text-slate-400 text-sm font-medium uppercase tracking-wider mb-2" data-i18n="correlation">Correlation: RAM vs I/O</h2>
-                            <div class="flex-grow relative w-full h-full">
-                                <canvas id="historyChart"></canvas>
-                            </div>
-                        </div>
-                        <div class="card rounded-lg p-5 flex-grow flex flex-col h-48 overflow-y-auto terminal-scroll">
-                            <h2 class="text-slate-400 text-sm font-medium uppercase tracking-wider mb-2" data-i18n="storage">Physical Storage Grid</h2>
-                            <div id="storage-grid" class="space-y-3">
-                                <!-- JS Populated physical drive blades -->
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Right: Unified Process Grid -->
-                    <div class="card rounded-lg p-5 h-100 flex flex-col lg:col-span-2" style="height: 408px;">
-                        <div class="flex justify-between items-center mb-4">
-                            <h2 class="text-slate-400 text-sm font-medium uppercase tracking-wider" data-i18n="top_processes">Top Docker Processes</h2>
-                            <span class="text-xs text-slate-500 bg-slate-800 px-2 py-1 rounded" data-i18n="sorted_by">Sorted by Disk I/O</span>
-                        </div>
-                        <div class="flex-grow overflow-y-auto terminal-scroll">
-                            <table class="w-full text-left text-sm">
-                                <thead class="text-slate-500 border-b border-slate-800/60 font-mono text-xs uppercase">
-                                    <tr>
-                                        <th class="pb-2 font-medium" data-i18n="th_name">Name</th>
-                                        <th class="pb-2 font-medium" data-i18n="th_type">Type</th>
-                                        <th class="pb-2 font-medium text-right">CPU%</th>
-                                        <th class="pb-2 font-medium text-right">RAM</th>
-                                        <th class="pb-2 font-medium text-right" data-i18n="th_disk">Disk I/O</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="process-table" class="font-mono text-xs divide-y divide-slate-800/60">
-                                    <!-- JS Populated -->
-                                </tbody>
-                            </table>
-                        </div>
+            <!-- Left: Chart & MergerFS Physical Storage Matrix -->
+            <div class="lg:col-span-1 space-y-6 flex flex-col">
+                <div class="card rounded-lg p-5 flex-shrink-0 h-48 flex flex-col">
+                    <h2 class="text-slate-400 text-sm font-medium uppercase tracking-wider mb-2" data-i18n="correlation">Correlation: RAM vs I/O</h2>
+                    <div class="flex-grow relative w-full h-full">
+                        <canvas id="historyChart"></canvas>
                     </div>
                 </div>
-
-            </div>
-
-            <!-- Right Side: Flight Log (Spans 1 col, Full Height) -->
-            <div class="lg:col-span-1">
-                <div class="card rounded-lg p-5 flex flex-col relative overflow-hidden h-full" style="min-height: 408px;">
-                    <h2 class="text-slate-400 text-sm font-medium uppercase tracking-wider mb-2" data-i18n="flight_log">System Flight Log</h2>
-                    <div id="log-window" class="flex-grow overflow-y-auto terminal-scroll font-mono text-[10px] space-y-1 text-slate-300 pr-2">
-                        <!-- JS Populated -->
+                <div class="card rounded-lg p-5 flex-grow flex flex-col h-48 overflow-y-auto terminal-scroll">
+                    <h2 class="text-slate-400 text-sm font-medium uppercase tracking-wider mb-2" data-i18n="storage">Physical Storage Grid</h2>
+                    <div id="storage-grid" class="space-y-3">
+                        <!-- JS Populated physical drive blades -->
                     </div>
-                    <!-- Gradient fade at bottom -->
-                    <div class="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-[#0f172a] to-transparent pointer-events-none"></div>
                 </div>
             </div>
 
+            <!-- Right: Unified Process Grid -->
+            <div class="card rounded-lg p-5 h-100 flex flex-col lg:col-span-2" style="height: 408px;">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-slate-400 text-sm font-medium uppercase tracking-wider" data-i18n="top_processes">Top Processes</h2>
+                    <span class="text-xs text-slate-500 bg-slate-800 px-2 py-1 rounded" data-i18n="sorted_by">Sorted by Disk I/O</span>
+                </div>
+                <div class="flex-grow overflow-y-auto terminal-scroll">
+                    <table class="w-full text-left text-sm">
+                        <thead class="text-slate-500 border-b border-slate-800/60 font-mono text-xs uppercase">
+                            <tr>
+                                <th class="pb-2 font-medium" data-i18n="th_name">Name</th>
+                                <th class="pb-2 font-medium" data-i18n="th_type">Type</th>
+                                <th class="pb-2 font-medium text-right">CPU%</th>
+                                <th class="pb-2 font-medium text-right">RAM</th>
+                                <th class="pb-2 font-medium text-right" data-i18n="th_disk">Disk I/O</th>
+                            </tr>
+                        </thead>
+                        <tbody id="process-table" class="font-mono text-xs divide-y divide-slate-800/60">
+                            <!-- JS Populated -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Full Width Flight Log -->
+        <div class="card rounded-lg p-5 flex flex-col relative overflow-hidden" style="height: 250px;">
+            <h2 class="text-slate-400 text-sm font-medium uppercase tracking-wider mb-2" data-i18n="flight_log">System Flight Log</h2>
+            <div id="log-window" class="flex-grow overflow-y-auto terminal-scroll font-mono text-[10px] space-y-1 text-slate-300 pr-2">
+                <!-- JS Populated -->
+            </div>
+            <!-- Gradient fade at bottom -->
+            <div class="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-[#0f172a] to-transparent pointer-events-none"></div>
         </div>
 
     </div>

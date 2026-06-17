@@ -65,7 +65,15 @@ cd <repository_folder>
 sudo ./install.sh
 ```
 
-#### 2. Configurazione (`config.json`)
+#### 2. Aggiornamento (Update)
+Se PiGuard è già installato e desideri aggiornarlo con le ultime modifiche (senza perdere il tuo file di configurazione), entra nella cartella scaricata e lancia lo script dedicato:
+
+```bash
+cd <repository_folder>
+sudo ./update.sh
+```
+
+#### 3. Configurazione (`config.json`)
 Al termine dell'installazione, lo script genererà un file in `/etc/piguard/config.json`. **Apri e modifica questo file per adattarlo alle tue necessità**.
 Esempio di configurazione:
 ```json
@@ -156,7 +164,15 @@ cd <repository_folder>
 sudo ./install.sh
 ```
 
-#### 2. Configuration (`config.json`)
+#### 2. Updating
+If PiGuard is already installed and you want to update it to the latest version (without losing your configuration), simply run the update script from within the downloaded repository folder:
+
+```bash
+cd <repository_folder>
+sudo ./update.sh
+```
+
+#### 3. Configuration (`config.json`)
 After installation, the setup script generates a file at `/etc/piguard/config.json`. **You must open and edit this file to suit your environment**.
 Configuration Example:
 ```json
