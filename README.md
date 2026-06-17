@@ -1,4 +1,4 @@
-# PiGuard-Hybrid
+# PiGuard
 
 [🇮🇹 Italiano](#italiano) | [🇬🇧 English](#english)
 
@@ -7,7 +7,7 @@
 <a name="italiano"></a>
 ## 🇮🇹 Italiano
 
-**PiGuard-Hybrid** è un watchdog avanzato e un demone di automonitoraggio Python leggero e standalone, progettato specificamente per le esigenze di un Raspberry Pi 4 (basato su sistemi operativi Debian/Ubuntu).
+**PiGuard** è un watchdog avanzato e un demone di automonitoraggio Python leggero e standalone, progettato specificamente per le esigenze di un Raspberry Pi 4 (basato su sistemi operativi Debian/Ubuntu).
 
 Il suo obiettivo primario è **monitorare costantemente la salute del sistema** (RAM, CPU, I/O Dischi, Rete) e **prevenire proattivamente blocchi o crash totali** (spesso causati dall'esaurimento della memoria) applicando azioni correttive autonome su container Docker e servizi systemd nativi. Non è solo un sistema di allerta, ma un sistema di "Self-Healing" (auto-guarigione).
 
@@ -17,7 +17,7 @@ Include inoltre una **Enterprise Web Dashboard** integrata ("Cyber-Grid Dark") p
 
 ### ✨ Funzionalità Architetturali e Monitoraggio
 
-PiGuard-Hybrid opera su più livelli per fornire una panoramica completa:
+PiGuard opera su più livelli per fornire una panoramica completa:
 
 1. **Monitoraggio Ibrido Globale:**
    - **Memoria e CPU:** Legge direttamente da `/proc/meminfo` e `/proc/stat` per ottenere un consumo accurato senza pesare sulle risorse.
@@ -98,7 +98,7 @@ Esempio di configurazione:
 <a name="english"></a>
 ## 🇬🇧 English
 
-**PiGuard-Hybrid** is an advanced watchdog and lightweight, standalone Python self-monitoring daemon specifically designed for the strict resource constraints of a Raspberry Pi 4 (running Debian/Ubuntu-based OS).
+**PiGuard** is an advanced watchdog and lightweight, standalone Python self-monitoring daemon specifically designed for the strict resource constraints of a Raspberry Pi 4 (running Debian/Ubuntu-based OS).
 
 Its primary objective is to **constantly monitor system health** (RAM, CPU, Disk I/O, Network) and **proactively prevent total freezes or crashes** (often caused by out-of-memory states) by applying autonomous corrective actions on Docker containers and native systemd services. It is not just an alerting tool; it is a "Self-Healing" system.
 
@@ -108,7 +108,7 @@ It also features a built-in **Enterprise Web Dashboard** ("Cyber-Grid Dark") to 
 
 ### ✨ Architectural Features and Monitoring
 
-PiGuard-Hybrid operates on multiple layers to provide a comprehensive overview:
+PiGuard operates on multiple layers to provide a comprehensive overview:
 
 1. **Global Hybrid Monitoring:**
    - **Memory & CPU:** Reads directly from `/proc/meminfo` and `/proc/stat` for highly accurate, zero-overhead tracking.
