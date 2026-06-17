@@ -378,80 +378,44 @@ def get_top_docker_processes():
     except Exception:
         return []
 
-def get_top_systemd_processes():
+def get_top_os_processes():
     """
-    Finds top memory consuming systemd services using `systemd-cgtop` or similar.
-    We can use `systemctl status` but `systemd-cgtop --batch -n 1` is better for resources.
-    Returns list of dicts: [{'name': 'service_name', 'mem_bytes': int, 'cpu_percent': float, 'disk_io': str}]
+    Finds top memory/cpu consuming processes using generic `ps` to capture EVERYTHING natively.
+    Returns list of dicts: [{'name': 'process_name', 'mem_bytes': int, 'cpu_percent': float, 'disk_io': str, 'type': 'os'}]
     """
     try:
-        # systemd-cgtop -b -n 1 -m
-        # Output:
-        # Control Group                                       Tasks   %CPU   Memory  Input/s Output/s
-        # /                                                     105      -     1.2G        -        -
-        # /system.slice                                          55      -     500M        -        -
-        # /system.slice/docker.service                           15      -     200M        -        -
-        res = subprocess.run(['systemd-cgtop', '--batch', '-n', '1', '-m'], capture_output=True, text=True, timeout=10)
-        services = []
-        lines = res.stdout.strip().split('\n')[1:] # Skip header
+        # ps -e -o comm,%cpu,%mem,rss --sort=-%mem | head -n 20
+        res = subprocess.run(['ps', '-e', '-o', 'comm,%cpu,%mem,rss', '--sort=-%mem'], capture_output=True, text=True, timeout=10)
+        processes = []
+        lines = res.stdout.strip().split('\n')[1:21] # Skip header, get top 20
         for line in lines:
             parts = line.split()
-            if not parts:
-                continue
-            cgroup = parts[0]
-            if cgroup.startswith('/system.slice/') and cgroup.endswith('.service'):
-                service_name = cgroup.split('/')[-1]
-                # Try to parse memory
-                if len(parts) >= 4:
-                    mem_str = parts[3]
-                    mem_bytes = 0
-                    if mem_str.endswith('B'):
-                        mem_str = mem_str[:-1]
-                    try:
-                        multiplier = 1
-                        if mem_str.endswith('K'):
-                            multiplier = 1024
-                            mem_str = mem_str[:-1]
-                        elif mem_str.endswith('M'):
-                            multiplier = 1024 * 1024
-                            mem_str = mem_str[:-1]
-                        elif mem_str.endswith('G'):
-                            multiplier = 1024 * 1024 * 1024
-                            mem_str = mem_str[:-1]
-                        elif mem_str == '-':
-                            mem_str = '0'
-                        mem_bytes = float(mem_str) * multiplier
+            if len(parts) >= 4:
+                # Name might have spaces, so we merge all but the last 3 cols
+                name = " ".join(parts[:-3])
+                try:
+                    cpu_perc = float(parts[-3])
+                    mem_perc = float(parts[-2])
+                    rss_kb = float(parts[-1])
+                    mem_bytes = rss_kb * 1024
 
-                        cpu_perc = 0.0
-                        if len(parts) >= 3 and parts[2] != '-':
-                            try: cpu_perc = float(parts[2])
-                            except: pass
-
-                        # IO read/write from cgtop is usually column 4 and 5 (Input/s Output/s)
-                        disk_io = "0B / 0B"
-                        if len(parts) >= 6:
-                            io_in = parts[4] if parts[4] != '-' else '0B'
-                            io_out = parts[5] if parts[5] != '-' else '0B'
-                            disk_io = f"{io_in} / {io_out}"
-
-                        services.append({
-                            'name': service_name,
-                            'mem_bytes': mem_bytes,
-                            'cpu_percent': cpu_perc,
-                            'disk_io': disk_io,
-                            'type': 'systemd'
-                        })
-                    except ValueError:
-                        pass
-        services.sort(key=lambda x: x['mem_bytes'], reverse=True)
-        return services
+                    processes.append({
+                        'name': name,
+                        'mem_bytes': mem_bytes,
+                        'mem_percent': mem_perc,
+                        'cpu_percent': cpu_perc,
+                        'disk_io': '-', # ps doesn't provide easy per-process IO without iotop (requires root/delays)
+                        'type': 'os'
+                    })
+                except ValueError:
+                    pass
+        return processes
     except Exception:
         return []
 
 def get_top_resource_hog():
     """
-    Combines Docker and systemd metrics to find the absolute highest memory consumer.
-    Since Docker reports %, and systemd reports bytes, we normalize using total RAM.
+    Combines Docker and OS metrics to find the absolute highest memory consumer.
     """
     _, _, total_ram_kb, _, _ = get_ram_usage()
     if total_ram_kb == 0:
@@ -460,13 +424,13 @@ def get_top_resource_hog():
     total_ram_bytes = total_ram_kb * 1024
 
     dockers = get_top_docker_processes()
-    systemds = get_top_systemd_processes()
+    os_procs = get_top_os_processes()
 
     # Convert docker % to bytes for comparison
     for d in dockers:
         d['mem_bytes'] = (d['mem_percent'] / 100.0) * total_ram_bytes
 
-    all_procs = dockers + systemds
+    all_procs = dockers + os_procs
     all_procs.sort(key=lambda x: x['mem_bytes'], reverse=True)
 
     if all_procs:

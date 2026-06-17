@@ -2,7 +2,7 @@ from flask import Flask, jsonify, render_template
 import threading
 import os
 
-from monitor import get_ram_usage, get_cpu_temp, get_cpu_load, get_io_wait, get_top_docker_processes, get_top_systemd_processes, get_network_io, get_disk_metrics
+from monitor import get_ram_usage, get_cpu_temp, get_cpu_load, get_io_wait, get_top_docker_processes, get_top_os_processes, get_network_io, get_disk_metrics
 
 app = Flask(__name__)
 
@@ -56,13 +56,10 @@ def api_metrics():
 @app.route('/api/processes')
 def api_processes():
     dockers = get_top_docker_processes()
-    systemds = get_top_systemd_processes()
+    # User requested: "Top Processes mostra solo i docker non tutti i processi più pesanti in generale."
+    # So we ONLY return dockers for the web dashboard list, even though the backend monitors OS procs for remediation.
 
-    # Normalize memory for sorting (using bytes/KB is hard without knowing total ram for docker)
-    # We will pass the raw values to the frontend and let it render.
-    all_procs = dockers + systemds
-    # Sort by cpu or mem. Frontend will sort by default to Disk Usage, but we just return all.
-    return jsonify({'processes': all_procs})
+    return jsonify({'processes': dockers})
 
 @app.route('/api/logs')
 def api_logs():

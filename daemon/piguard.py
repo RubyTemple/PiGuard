@@ -54,7 +54,7 @@ def main():
             # Level 1: RAM < 10% -> Drop caches
             if free_ram_percent < drop_threshold:
                 if now - last_cache_drop_time > cache_drop_cooldown:
-                    logger.log(f"RAM Free ({free_ram_percent:.2f}%) below drop threshold ({drop_threshold}%).")
+                    logger.log(f"🚨 GUARD ACTION: RAM Free ({free_ram_percent:.2f}%) below {drop_threshold}%. Initiating safe cache flush.")
                     logger.dump_crash_log("RAM_WARNING_CACHE_DROP")
                     drop_caches(logger)
                     last_cache_drop_time = time.time()
@@ -62,12 +62,14 @@ def main():
             # Level 2: RAM < 5% -> Find hog and restart
             if free_ram_percent < remediation_threshold:
                 if now - last_remediation_time > remediation_cooldown:
-                    logger.log(f"RAM Free ({free_ram_percent:.2f}%) below remediation threshold ({remediation_threshold}%).")
+                    logger.log(f"🚨 GUARD ACTION: RAM Critical ({free_ram_percent:.2f}%). Seeking top resource hog to cut.")
                     logger.dump_crash_log("RAM_CRITICAL_RESTART")
 
                     hog = get_top_resource_hog()
                     if hog:
-                        logger.log(f"Top resource hog identified: {hog['name']} ({hog['type']}) using ~{hog['mem_bytes'] / (1024*1024):.2f} MB")
+                        mb_used = hog.get('mem_bytes', 0) / (1024*1024)
+                        cpu_used = hog.get('cpu_percent', 0.0)
+                        logger.log(f"✂️ CUT ACTION: Target identified -> {hog['name']} [{hog['type']}] (RAM: {mb_used:.1f}MB, CPU: {cpu_used}%)")
                         success = restart_target(hog, config, logger)
                         if success:
                             last_remediation_time = time.time()
@@ -76,9 +78,9 @@ def main():
                             # a backoff or try the next hog, but for now we'll just log and continue.
                             # We update the last_remediation_time anyway to avoid tight loop on a whitelisted hog.
                             last_remediation_time = time.time()
-                            logger.log(f"Remediation failed or skipped for {hog['name']}. Cooldown started.")
+                            logger.log(f"✂️ CUT SKIPPED: Remediation failed or bypassed for {hog['name']}.")
                     else:
-                        logger.log("Could not identify top resource hog.")
+                        logger.log("✂️ CUT FAILED: Could not identify top resource hog.")
 
         except Exception as e:
             logger.log(f"Unexpected error in main loop: {e}")

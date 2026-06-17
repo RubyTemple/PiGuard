@@ -53,13 +53,17 @@
             <div class="flex items-center space-x-3">
                 <i data-lucide="shield-check" class="text-emerald-400 w-8 h-8"></i>
                 <h1 class="text-2xl font-bold tracking-wide">PiGuard<span class="text-slate-500 font-light">Hybrid</span></h1>
+
+                <button onclick="toggleLang()" id="lang-btn" class="ml-4 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs py-1 px-2 rounded transition-colors duration-300 border border-slate-700">
+                    🇬🇧 EN
+                </button>
             </div>
             <div class="text-sm font-mono text-slate-400 flex items-center space-x-2">
                 <span class="relative flex h-3 w-3">
                   <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                   <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
                 </span>
-                <span>LIVE SYSTEM TELEMETRY</span>
+                <span data-i18n="live_telemetry">LIVE SYSTEM TELEMETRY</span>
             </div>
         </div>
 
@@ -68,7 +72,7 @@
             <!-- CPU Load -->
             <div class="card rounded-lg p-5 flex flex-col justify-between h-32">
                 <div class="flex justify-between items-start">
-                    <span class="text-slate-400 text-sm font-medium uppercase tracking-wider">CPU Load</span>
+                    <span class="text-slate-400 text-sm font-medium uppercase tracking-wider" data-i18n="cpu_load">CPU Load</span>
                     <i data-lucide="cpu" class="text-slate-500 w-5 h-5"></i>
                 </div>
                 <div class="flex items-baseline space-x-2">
@@ -80,7 +84,7 @@
             <!-- Memory Pool -->
             <div class="card rounded-lg p-5 flex flex-col justify-between h-32">
                 <div class="flex justify-between items-start">
-                    <span class="text-slate-400 text-sm font-medium uppercase tracking-wider">Memory Pool</span>
+                    <span class="text-slate-400 text-sm font-medium uppercase tracking-wider" data-i18n="memory_pool">Memory Pool</span>
                     <i data-lucide="memory-stick" class="text-slate-500 w-5 h-5"></i>
                 </div>
                 <div class="flex items-baseline space-x-2">
@@ -92,7 +96,7 @@
             <!-- Network Bandwidth -->
             <div class="card rounded-lg p-5 flex flex-col justify-between h-32">
                 <div class="flex justify-between items-start">
-                    <span class="text-slate-400 text-sm font-medium uppercase tracking-wider">Network</span>
+                    <span class="text-slate-400 text-sm font-medium uppercase tracking-wider" data-i18n="network">Network</span>
                     <i data-lucide="activity" class="text-slate-500 w-5 h-5"></i>
                 </div>
                 <div class="flex flex-col space-y-1 mt-2">
@@ -110,7 +114,7 @@
             <!-- Disk I/O Wait -->
             <div class="card rounded-lg p-5 flex flex-col justify-between h-32 transition-colors duration-500" id="io-card">
                 <div class="flex justify-between items-start">
-                    <span class="text-slate-400 text-sm font-medium uppercase tracking-wider">I/O Wait</span>
+                    <span class="text-slate-400 text-sm font-medium uppercase tracking-wider" data-i18n="io_wait">I/O Wait</span>
                     <i data-lucide="hard-drive" class="text-slate-500 w-5 h-5"></i>
                 </div>
                 <div class="flex items-baseline space-x-2">
@@ -121,7 +125,7 @@
             <!-- System Health -->
             <div class="card rounded-lg p-5 flex flex-col justify-between h-32">
                 <div class="flex justify-between items-start">
-                    <span class="text-slate-400 text-sm font-medium uppercase tracking-wider">System Health</span>
+                    <span class="text-slate-400 text-sm font-medium uppercase tracking-wider" data-i18n="system_health">System Health</span>
                     <i data-lucide="activity" class="text-slate-500 w-5 h-5"></i>
                 </div>
                 <div class="flex items-baseline space-x-2">
@@ -130,62 +134,126 @@
             </div>
         </div>
 
-        <!-- Middle Row: Analytics & Processes -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- Left: Chart & MergerFS Physical Storage Matrix -->
-            <div class="lg:col-span-1 space-y-6 flex flex-col">
-                <div class="card rounded-lg p-5 flex-shrink-0 h-48 flex flex-col">
-                    <h2 class="text-slate-400 text-sm font-medium uppercase tracking-wider mb-2">Correlation: RAM vs I/O</h2>
-                    <div class="flex-grow relative w-full h-full">
-                        <canvas id="historyChart"></canvas>
+        <!-- Main Content Area: Left (Charts/Procs) and Right (Flight Log) -->
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+
+            <!-- Left Side: Analytics & Processes (Spans 3 cols) -->
+            <div class="lg:col-span-3 space-y-6">
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Left: Chart & MergerFS Physical Storage Matrix -->
+                    <div class="lg:col-span-1 space-y-6 flex flex-col">
+                        <div class="card rounded-lg p-5 flex-shrink-0 h-48 flex flex-col">
+                            <h2 class="text-slate-400 text-sm font-medium uppercase tracking-wider mb-2" data-i18n="correlation">Correlation: RAM vs I/O</h2>
+                            <div class="flex-grow relative w-full h-full">
+                                <canvas id="historyChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="card rounded-lg p-5 flex-grow flex flex-col h-48 overflow-y-auto terminal-scroll">
+                            <h2 class="text-slate-400 text-sm font-medium uppercase tracking-wider mb-2" data-i18n="storage">Physical Storage Grid</h2>
+                            <div id="storage-grid" class="space-y-3">
+                                <!-- JS Populated physical drive blades -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Unified Process Grid -->
+                    <div class="card rounded-lg p-5 h-100 flex flex-col lg:col-span-2" style="height: 408px;">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-slate-400 text-sm font-medium uppercase tracking-wider" data-i18n="top_processes">Top Docker Processes</h2>
+                            <span class="text-xs text-slate-500 bg-slate-800 px-2 py-1 rounded" data-i18n="sorted_by">Sorted by Disk I/O</span>
+                        </div>
+                        <div class="flex-grow overflow-y-auto terminal-scroll">
+                            <table class="w-full text-left text-sm">
+                                <thead class="text-slate-500 border-b border-slate-800/60 font-mono text-xs uppercase">
+                                    <tr>
+                                        <th class="pb-2 font-medium" data-i18n="th_name">Name</th>
+                                        <th class="pb-2 font-medium" data-i18n="th_type">Type</th>
+                                        <th class="pb-2 font-medium text-right">CPU%</th>
+                                        <th class="pb-2 font-medium text-right">RAM</th>
+                                        <th class="pb-2 font-medium text-right" data-i18n="th_disk">Disk I/O</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="process-table" class="font-mono text-xs divide-y divide-slate-800/60">
+                                    <!-- JS Populated -->
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
-                <div class="card rounded-lg p-5 flex-grow flex flex-col h-48 overflow-y-auto terminal-scroll">
-                    <h2 class="text-slate-400 text-sm font-medium uppercase tracking-wider mb-2">Physical Storage Grid</h2>
-                    <div id="storage-grid" class="space-y-3">
-                        <!-- JS Populated physical drive blades -->
+
+            </div>
+
+            <!-- Right Side: Flight Log (Spans 1 col, Full Height) -->
+            <div class="lg:col-span-1">
+                <div class="card rounded-lg p-5 flex flex-col relative overflow-hidden h-full" style="min-height: 408px;">
+                    <h2 class="text-slate-400 text-sm font-medium uppercase tracking-wider mb-2" data-i18n="flight_log">System Flight Log</h2>
+                    <div id="log-window" class="flex-grow overflow-y-auto terminal-scroll font-mono text-[10px] space-y-1 text-slate-300 pr-2">
+                        <!-- JS Populated -->
                     </div>
+                    <!-- Gradient fade at bottom -->
+                    <div class="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-[#0f172a] to-transparent pointer-events-none"></div>
                 </div>
             </div>
 
-            <!-- Right: Unified Process Grid -->
-            <div class="card rounded-lg p-5 h-100 flex flex-col lg:col-span-2">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-slate-400 text-sm font-medium uppercase tracking-wider">Top Processes</h2>
-                    <span class="text-xs text-slate-500 bg-slate-800 px-2 py-1 rounded">Sorted by Disk I/O (Approximation)</span>
-                </div>
-                <div class="flex-grow overflow-y-auto terminal-scroll">
-                    <table class="w-full text-left text-sm">
-                        <thead class="text-slate-500 border-b border-slate-800/60 font-mono text-xs uppercase">
-                            <tr>
-                                <th class="pb-2 font-medium">Name</th>
-                                <th class="pb-2 font-medium">Type</th>
-                                <th class="pb-2 font-medium text-right">CPU%</th>
-                                <th class="pb-2 font-medium text-right">RAM</th>
-                                <th class="pb-2 font-medium text-right">Disk I/O</th>
-                            </tr>
-                        </thead>
-                        <tbody id="process-table" class="font-mono text-xs divide-y divide-slate-800/60">
-                            <!-- JS Populated -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <!-- Bottom Row: Flight Log -->
-        <div class="card rounded-lg p-5 h-64 flex flex-col relative overflow-hidden">
-            <h2 class="text-slate-400 text-sm font-medium uppercase tracking-wider mb-2">System Flight Log</h2>
-            <div id="log-window" class="flex-grow overflow-y-auto terminal-scroll font-mono text-xs space-y-1 text-slate-300">
-                <!-- JS Populated -->
-            </div>
-            <!-- Gradient fade at bottom -->
-            <div class="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-[#0f172a] to-transparent pointer-events-none"></div>
         </div>
 
     </div>
 
     <script>
+        // --- Localization System ---
+        const translations = {
+            'en': {
+                'live_telemetry': 'LIVE SYSTEM TELEMETRY',
+                'cpu_load': 'CPU Load',
+                'memory_pool': 'Memory Pool',
+                'network': 'Network',
+                'io_wait': 'I/O Wait',
+                'system_health': 'System Health',
+                'correlation': 'Correlation: RAM vs I/O',
+                'storage': 'Physical Storage Grid',
+                'top_processes': 'Top Docker Processes',
+                'sorted_by': 'Sorted by Disk I/O',
+                'th_name': 'Name',
+                'th_type': 'Type',
+                'th_disk': 'Disk I/O',
+                'flight_log': 'System Flight Log (Guard/Cut)'
+            },
+            'it': {
+                'live_telemetry': 'TELEMETRIA DI SISTEMA LIVE',
+                'cpu_load': 'Carico CPU',
+                'memory_pool': 'Memoria',
+                'network': 'Rete',
+                'io_wait': 'Attesa I/O',
+                'system_health': 'Salute Sistema',
+                'correlation': 'Correlazione: RAM vs I/O',
+                'storage': 'Griglia Storage Fisico',
+                'top_processes': 'Processi Docker Principali',
+                'sorted_by': 'Ordinato per I/O Disco',
+                'th_name': 'Nome',
+                'th_type': 'Tipo',
+                'th_disk': 'I/O Disco',
+                'flight_log': 'Log di Volo (Guard/Cut)'
+            }
+        };
+
+        let currentLang = 'en';
+
+        function toggleLang() {
+            currentLang = currentLang === 'en' ? 'it' : 'en';
+            document.getElementById('lang-btn').textContent = currentLang === 'en' ? '🇮🇹 IT' : '🇬🇧 EN';
+            applyTranslations();
+        }
+
+        function applyTranslations() {
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (translations[currentLang][key]) {
+                    el.textContent = translations[currentLang][key];
+                }
+            });
+        }
+
         lucide.createIcons();
 
         // Chart Setup
@@ -429,9 +497,9 @@
                     const div = document.createElement('div');
                     // Style interesting lines
                     const lowerLine = line.toLowerCase();
-                    if (lowerLine.includes('flush') || lowerLine.includes('restarting') || lowerLine.includes('below')) {
+                    if (lowerLine.includes('flush') || lowerLine.includes('restarting') || lowerLine.includes('below') || lowerLine.includes('cut action')) {
                         div.className = 'pl-2 border-l-2 border-rose-500 text-slate-100 py-0.5';
-                    } else if (lowerLine.includes('warning') || lowerLine.includes('failed')) {
+                    } else if (lowerLine.includes('warning') || lowerLine.includes('failed') || lowerLine.includes('guard action')) {
                         div.className = 'pl-2 border-l-2 border-amber-500 text-slate-200 py-0.5';
                     } else {
                         div.className = 'pl-2 border-l-2 border-slate-800 py-0.5';
