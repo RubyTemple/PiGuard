@@ -5,6 +5,7 @@ from config import load_config
 from logger import FlightRecorder
 from monitor import get_ram_usage, get_cpu_temp, get_top_resource_hog
 from remediation import drop_caches, restart_target
+from monitor import get_network_io, get_disk_metrics
 from web import run_web_server_thread
 
 def main():
@@ -35,6 +36,18 @@ def main():
             cpu_temp = get_cpu_temp()
 
             logger.log(f"Metrics - RAM Free: {free_ram_percent:.2f}% ({free_kb}KB / {total_kb}KB), CPU Temp: {cpu_temp:.1f}C")
+
+            # Check for network anomalies
+            net = get_network_io()
+            # Log only if there's an active rate of drops (>0 drops per second)
+            if net.get('rx_drops_rate', 0) > 0 or net.get('tx_drops_rate', 0) > 0:
+                logger.log(f"[NETWORK WARNING] Interface dropping packets (Rx/s: {net.get('rx_drops_rate', 0):.1f}, Tx/s: {net.get('tx_drops_rate', 0):.1f})")
+
+            # Check for storage anomalies
+            disks = get_disk_metrics()
+            for dev, stats in disks.items():
+                if stats['utilization'] >= 95.0:
+                    logger.log(f"[STORAGE WARNING] Drive /dev/{dev} reached {stats['utilization']:.1f}% I/O utilization - Latency spike predicted")
 
             now = time.time()
 

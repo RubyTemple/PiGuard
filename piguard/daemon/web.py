@@ -2,7 +2,7 @@ from flask import Flask, jsonify, render_template
 import threading
 import os
 
-from monitor import get_ram_usage, get_cpu_temp, get_cpu_load, get_io_wait, get_top_docker_processes, get_top_systemd_processes
+from monitor import get_ram_usage, get_cpu_temp, get_cpu_load, get_io_wait, get_top_docker_processes, get_top_systemd_processes, get_network_io, get_disk_metrics
 
 app = Flask(__name__)
 
@@ -25,6 +25,9 @@ def api_metrics():
     cpu_load = get_cpu_load()
     io_wait = get_io_wait()
 
+    net_io = get_network_io()
+    disk_metrics = get_disk_metrics()
+
     # Calculate a mock health score based on metrics
     health = 100.0
     if used_ram_percent > 80: health -= (used_ram_percent - 80)
@@ -45,7 +48,9 @@ def api_metrics():
             'swap_total_kb': swap_total_kb
         },
         'io_wait': round(io_wait, 1),
-        'health_score': round(health, 0)
+        'health_score': round(health, 0),
+        'network': net_io,
+        'disks': disk_metrics
     })
 
 @app.route('/api/processes')

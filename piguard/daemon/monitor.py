@@ -67,6 +67,223 @@ def get_cpu_load():
         pass
     return 0.0
 
+import time
+
+last_net_rx = 0
+last_net_tx = 0
+last_net_time = 0
+
+def get_network_io():
+    """
+    Reads /proc/net/dev to get total Rx/Tx throughput (bytes/sec) and total drop/error rates.
+    Returns dict: {'rx_bps': float, 'tx_bps': float, 'rx_drops': int, 'tx_drops': int, 'rx_errors': int, 'tx_errors': int}
+    """
+    global last_net_rx, last_net_tx, last_net_time
+
+    current_time = time.time()
+    current_rx = 0
+    current_tx = 0
+    drops_rx = 0
+    drops_tx = 0
+    errors_rx = 0
+    errors_tx = 0
+
+    try:
+        with open('/proc/net/dev', 'r') as f:
+            lines = f.readlines()[2:] # Skip headers
+            for line in lines:
+                parts = line.split()
+                if not parts:
+                    continue
+                # format: Interface: rx_bytes rx_packets rx_errs rx_drop rx_fifo rx_frame rx_comp rx_mcast tx_bytes tx_packets tx_errs tx_drop ...
+                if parts[0] == 'lo:':
+                    continue
+
+                # Handling cases where interface name and bytes are not separated by space
+                if ':' in parts[0]:
+                    rx_bytes = int(parts[1])
+                    rx_errs = int(parts[3])
+                    rx_drop = int(parts[4])
+                    tx_bytes = int(parts[9])
+                    tx_errs = int(parts[11])
+                    tx_drop = int(parts[12])
+                else:
+                    # Depending on format
+                    pass
+
+                current_rx += rx_bytes
+                current_tx += tx_bytes
+                drops_rx += rx_drop
+                drops_tx += tx_drop
+                errors_rx += rx_errs
+                errors_tx += tx_errs
+    except Exception:
+        pass
+
+    global last_net_drops_rx, last_net_drops_tx, last_net_errs_rx, last_net_errs_tx
+
+    rx_bps = 0.0
+    tx_bps = 0.0
+    rx_drops_rate = 0.0
+    tx_drops_rate = 0.0
+    rx_errors_rate = 0.0
+    tx_errors_rate = 0.0
+
+    # Initialize these globals if they don't exist
+    if 'last_net_drops_rx' not in globals():
+        global last_net_drops_rx, last_net_drops_tx, last_net_errs_rx, last_net_errs_tx
+        last_net_drops_rx = drops_rx
+        last_net_drops_tx = drops_tx
+        last_net_errs_rx = errors_rx
+        last_net_errs_tx = errors_tx
+
+    if last_net_time > 0 and current_time > last_net_time:
+        time_diff = current_time - last_net_time
+        rx_bps = (current_rx - last_net_rx) / time_diff
+        tx_bps = (current_tx - last_net_tx) / time_diff
+        rx_drops_rate = (drops_rx - last_net_drops_rx) / time_diff
+        tx_drops_rate = (drops_tx - last_net_drops_tx) / time_diff
+        rx_errors_rate = (errors_rx - last_net_errs_rx) / time_diff
+        tx_errors_rate = (errors_tx - last_net_errs_tx) / time_diff
+
+    last_net_rx = current_rx
+    last_net_drops_rx = drops_rx
+    last_net_drops_tx = drops_tx
+    last_net_errs_rx = errors_rx
+    last_net_errs_tx = errors_tx
+    last_net_tx = current_tx
+    last_net_time = current_time
+
+    return {
+        'rx_bps': max(0.0, rx_bps),
+        'tx_bps': max(0.0, tx_bps),
+        'rx_drops_rate': max(0.0, rx_drops_rate),
+        'tx_drops_rate': max(0.0, tx_drops_rate),
+        'rx_errors_rate': max(0.0, rx_errors_rate),
+        'tx_errors_rate': max(0.0, tx_errors_rate)
+    }
+
+last_diskstats = {}
+last_disk_time = 0
+
+def get_mergerfs_physical_drives():
+    """
+    Attempts to read /proc/mounts to identify if a mergerfs mount exists,
+    and returns a list of base device names underlying it (or just returns all major block devices if not explicitly found).
+    Since mergerfs is FUSE, finding the exact underlying drives from mount might be tricky without config parsing.
+    Fallback: We return all physical hd*/sd*/nvme* devices found in /proc/diskstats that have activity.
+    """
+    drives = []
+    # Actually, let's just find standard physical disks.
+    valid_prefixes = ('sd', 'hd', 'vd', 'nvme')
+    try:
+        with open('/proc/diskstats', 'r') as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) >= 14:
+                    dev_name = parts[2]
+                    # ignore partitions (e.g., sda1), keep base block device (e.g., sda)
+                    if any(dev_name.startswith(p) for p in valid_prefixes):
+                        # Simple partition filter: if it ends in a number, it's usually a partition.
+                        # Except nvme0n1.
+                        if dev_name.startswith('nvme'):
+                            if 'p' in dev_name: continue
+                        else:
+                            if dev_name[-1].isdigit(): continue
+                        drives.append(dev_name)
+    except Exception:
+        pass
+    return drives
+
+def get_disk_metrics():
+    """
+    Reads /proc/diskstats to calculate IO metrics for physical drives.
+    Returns dict of drive_name -> {'read_bps': float, 'write_bps': float, 'iops': float, 'queue_length': float, 'utilization': float}
+    """
+    global last_diskstats, last_disk_time
+
+    current_time = time.time()
+    metrics = {}
+    drives_to_monitor = get_mergerfs_physical_drives()
+
+    current_stats = {}
+    try:
+        with open('/proc/diskstats', 'r') as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) >= 14:
+                    dev_name = parts[2]
+                    if dev_name not in drives_to_monitor:
+                        continue
+
+                    # 3: reads completed
+                    # 5: sectors read (usually 512 bytes per sector)
+                    # 7: writes completed
+                    # 9: sectors written
+                    # 11: I/O currently in progress (queue length)
+                    # 12: time spent doing I/Os (ms) (utilization)
+                    reads = int(parts[3])
+                    sectors_read = int(parts[5])
+                    writes = int(parts[7])
+                    sectors_written = int(parts[9])
+                    queue = int(parts[11])
+                    io_ticks = int(parts[12])
+
+                    current_stats[dev_name] = {
+                        'reads': reads,
+                        'sectors_read': sectors_read,
+                        'writes': writes,
+                        'sectors_written': sectors_written,
+                        'queue': queue,
+                        'io_ticks': io_ticks
+                    }
+    except Exception:
+        pass
+
+    if last_disk_time > 0 and current_time > last_disk_time:
+        time_diff = current_time - last_disk_time
+
+        for dev, stats in current_stats.items():
+            if dev in last_diskstats:
+                last = last_diskstats[dev]
+
+                d_reads = stats['reads'] - last['reads']
+                d_writes = stats['writes'] - last['writes']
+                d_sect_read = stats['sectors_read'] - last['sectors_read']
+                d_sect_write = stats['sectors_written'] - last['sectors_written']
+                d_ticks = stats['io_ticks'] - last['io_ticks']
+
+                iops = (d_reads + d_writes) / time_diff
+                read_bps = (d_sect_read * 512) / time_diff
+                write_bps = (d_sect_write * 512) / time_diff
+                # Utilization = (io_ticks delta in ms) / (time delta in ms) * 100
+                utilization = min(100.0, (d_ticks / (time_diff * 1000.0)) * 100.0)
+
+                metrics[dev] = {
+                    'read_bps': max(0.0, read_bps),
+                    'write_bps': max(0.0, write_bps),
+                    'iops': max(0.0, iops),
+                    'queue_length': stats['queue'],
+                    'utilization': max(0.0, utilization)
+                }
+            else:
+                # First time seeing this disk
+                metrics[dev] = {
+                    'read_bps': 0.0, 'write_bps': 0.0, 'iops': 0.0,
+                    'queue_length': stats['queue'], 'utilization': 0.0
+                }
+    else:
+        for dev, stats in current_stats.items():
+             metrics[dev] = {
+                    'read_bps': 0.0, 'write_bps': 0.0, 'iops': 0.0,
+                    'queue_length': stats['queue'], 'utilization': 0.0
+                }
+
+    last_diskstats = current_stats
+    last_disk_time = current_time
+
+    return metrics
+
 def get_io_wait():
     """
     Returns Disk I/O Wait percentage.

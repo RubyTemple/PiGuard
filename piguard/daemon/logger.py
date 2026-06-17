@@ -23,13 +23,19 @@ class FlightRecorder:
         while self.history and self.history[0][0] < now - self.max_history_seconds:
             self.history.popleft()
 
-        # Also write to tmpfs (very fast)
+        # Also write to tmpfs. Instead of appending forever, we'll rewrite the file
+        # every 10 logs to prevent memory leaks in tmpfs.
         try:
-            # We overwrite or append to keep it updated.
-            # Writing the entire history to tmpfs might be safe and fast enough if small.
-            # But just appending is better for I/O.
-            with open(FLIGHT_RECORDER_PATH, 'a') as f:
-                f.write(log_line + '\n')
+            if not hasattr(self, '_log_count'):
+                self._log_count = 0
+            self._log_count += 1
+            if self._log_count % 10 == 0:
+                with open(FLIGHT_RECORDER_PATH, 'w') as f:
+                    for _, l in self.history:
+                        f.write(l + '\n')
+            else:
+                with open(FLIGHT_RECORDER_PATH, 'a') as f:
+                    f.write(log_line + '\n')
         except Exception:
             pass
 
