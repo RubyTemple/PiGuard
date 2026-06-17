@@ -7,85 +7,178 @@
 <a name="italiano"></a>
 ## 🇮🇹 Italiano
 
-**PiGuard-Hybrid** è un watchdog e demone di automonitoraggio Python leggero e standalone, progettato specificamente per Raspberry Pi 4 (basato su Debian). Il suo obiettivo è monitorare la salute del sistema e prevenire blocchi o crash causati dall'esaurimento delle risorse da parte di container Docker e servizi systemd nativi, applicando azioni correttive autonome.
+**PiGuard-Hybrid** è un watchdog avanzato e un demone di automonitoraggio Python leggero e standalone, progettato specificamente per le esigenze di un Raspberry Pi 4 (basato su sistemi operativi Debian/Ubuntu).
 
-Include inoltre una **Enterprise Web Dashboard** integrata con un'estetica moderna (stile "Cyber-Grid Dark") per visualizzare le metriche in tempo reale.
+Il suo obiettivo primario è **monitorare costantemente la salute del sistema** (RAM, CPU, I/O Dischi, Rete) e **prevenire proattivamente blocchi o crash totali** (spesso causati dall'esaurimento della memoria) applicando azioni correttive autonome su container Docker e servizi systemd nativi. Non è solo un sistema di allerta, ma un sistema di "Self-Healing" (auto-guarigione).
 
-### ✨ Funzionalità Principali
+Include inoltre una **Enterprise Web Dashboard** integrata ("Cyber-Grid Dark") per visualizzare le metriche e i log in tempo reale.
 
-1. **Monitoraggio Ibrido delle Risorse:**
-   - Legge direttamente le metriche hardware (RAM, Swap, Temp CPU, I/O Wait) da `/proc` e `/sys`.
-   - Analizza l'uso della rete (Rx/Tx, pacchetti persi/errori).
-   - Estrae le metriche individuali per i dischi fisici sottostanti (ideale per setup MergerFS), inclusi velocità di lettura/scrittura, IOPS e lunghezza della coda.
-   - Si interfaccia con i cgroups di systemd e con le statistiche di Docker per identificare con precisione i processi più pesanti.
+---
 
-2. **Logica di Mitigazione Autonoma (Self-Healing):**
-   - **Crisi di Memoria:** Se la RAM libera scende sotto il 10%, avvia automaticamente uno svuotamento sicuro della cache del filesystem (`sync && drop_caches`).
-   - **Rimedio Intelligente:** Se la RAM libera scende sotto il 5%, identifica il processo (Docker o systemd) che consuma più risorse e lo riavvia in modo sicuro.
-   - Le whitelist configurabili impediscono al sistema di toccare i servizi critici (es. `ssh`, `networking`).
+### ✨ Funzionalità Architetturali e Monitoraggio
 
-3. **Dashboard Web Enterprise Integrata:**
-   - Server web Flask ultra-leggero in esecuzione sulla porta `8123`.
-   - Tema scuro e reattivo basato su Tailwind CSS.
-   - Visualizza widget per Larghezza di Banda di Rete, CPU, RAM, e I/O Wait.
-   - Include una "Physical Storage Matrix" per mostrare le prestazioni dei singoli dischi in tempo reale con avvisi visivi.
-   - Registratore di volo in stile terminale per visualizzare gli eventi di sistema e gli interventi autonomi.
+PiGuard-Hybrid opera su più livelli per fornire una panoramica completa:
 
-### ⚙️ Installazione
+1. **Monitoraggio Ibrido Globale:**
+   - **Memoria e CPU:** Legge direttamente da `/proc/meminfo` e `/proc/stat` per ottenere un consumo accurato senza pesare sulle risorse.
+   - **Rete (Network I/O):** Analizza `/proc/net/dev` per estrarre la larghezza di banda istantanea (Rx/Tx) e calcola i tassi di pacchetti persi (drop rate) per rilevare problemi di congestione.
+   - **Storage e MergerFS Matrix:** Indispensabile per chi usa pool di dischi (come MergerFS). PiGuard non guarda solo il disco principale, ma analizza `/proc/diskstats` per monitorare le performance di **ogni singolo disco fisico** sottostante (velocità di R/W, IOPS, lunghezza della coda, utilizzo percentuale), isolando istantaneamente il disco che causa colli di bottiglia (I/O Wait).
 
-Il progetto include uno script automatizzato che posiziona i file, installa le dipendenze (come Flask) e configura il demone come servizio systemd.
+2. **Analisi dei Processi (Systemd & Docker):**
+   - PiGuard interroga sia `systemd-cgtop` per i servizi nativi dell'OS, sia `docker stats` per i container.
+   - Unisce i dati in un'unica classifica universale, normalizzando i valori per scoprire esattamente "chi" sta affamando il sistema, ordinandoli per consumo I/O o RAM.
+
+---
+
+### 🛡️ Logica di Mitigazione Autonoma (Self-Healing)
+
+PiGuard interviene da solo quando il sistema entra in crisi, seguendo un approccio a due livelli di gravità:
+
+- **Livello 1 - Crisi di Memoria Lieve (RAM Libera < 10%):**
+  Il demone avvia automaticamente uno svuotamento sicuro della cache del filesystem (`sync && echo 3 > /proc/sys/vm/drop_caches`). Questo spesso risolve i blocchi legati a intensi trasferimenti di file senza interrompere i servizi.
+
+- **Livello 2 - Crisi di Memoria Critica (RAM Libera < 5%):**
+  Se lo svuotamento non basta, PiGuard identifica in autonomia il processo che sta consumando più memoria (che sia un container Docker o un servizio nativo) e **lo riavvia in modo sicuro** (`systemctl restart` o `docker restart`).
+
+- **Sicurezza tramite Whitelist:** Tramite configurazione, è possibile (e consigliato) indicare quali servizi non devono **mai** essere toccati (es. `ssh.service`, `networking.service`, `docker.service`). PiGuard li ignorerà sempre, passando al processo successivo.
+
+---
+
+### 🖥️ Dashboard Web Enterprise Integrata
+
+PiGuard espone una dashboard web integrata e ultra-leggera gestita tramite Flask, accessibile via browser.
+- **Porta di default:** `8123`
+- **Design "Cyber-Grid Dark":** Interfaccia premium, scura e pulita in stile Datadog/Grafana (Tailwind CSS + Chart.js).
+- **Physical Storage Matrix:** Ogni disco fisico appare come un "hardware-blade" indipendente che si illumina di giallo o rosso se va sotto stress I/O.
+- **System Flight Log:** Un emulatore di terminale integrato che mostra un "registratore di volo" in tempo reale degli eventi di sistema (avvisi di rete, interventi sui processi, flush di cache).
+
+---
+
+### ⚙️ Installazione e Configurazione
+
+#### 1. Clonazione e Setup
+Il progetto include uno script automatizzato che posiziona i file corretti, installa le dipendenze (Flask tramite apt/pip) e configura PiGuard come demone systemd, avviandolo in background.
 
 ```bash
-git clone <repository_url> piguard
-cd piguard
+git clone <repository_url>
+cd <repository_folder>
 sudo ./install.sh
 ```
 
-La configurazione predefinita viene salvata in `/etc/piguard/config.json`. Puoi modificarla per cambiare le soglie di intervento e gestire le whitelist di servizi o container.
+#### 2. Configurazione (`config.json`)
+Al termine dell'installazione, lo script genererà un file in `/etc/piguard/config.json`. **Apri e modifica questo file per adattarlo alle tue necessità**.
+Esempio di configurazione:
+```json
+{
+    "ram_cache_drop_threshold_percent": 10.0,
+    "ram_remediation_threshold_percent": 5.0,
+    "cpu_temp_threshold_celsius": 85.0,
+    "whitelist_services": [
+        "ssh.service",
+        "sshd.service",
+        "networking.service",
+        "docker.service"
+    ],
+    "whitelist_containers": [
+        "homeassistant",
+        "pihole"
+    ]
+}
+```
 
-Una volta installato, puoi accedere alla dashboard web aprendo il browser all'indirizzo:
-`http://<IP_DEL_TUO_RASPBERRY>:8123`
+#### 3. Gestione e Log
+- **Accesso Dashboard:** Apri il browser all'indirizzo `http://<IP_DEL_TUO_RASPBERRY>:8123`
+- **Gestione del servizio:** Puoi avviare, fermare o riavviare il demone con: `sudo systemctl restart piguard.service`
+- **Visualizzare i log base:** `journalctl -u piguard.service -f`
+- **Crash Log Persistenti:** In caso di crash critici, il "registratore di volo" riverserà gli ultimi 5 minuti di dati storici nel file `/var/log/piguard_crash.log`.
 
 ---
+<br><br>
 
 <a name="english"></a>
 ## 🇬🇧 English
 
-**PiGuard-Hybrid** is a lightweight, standalone Python watchdog and self-monitoring daemon explicitly built for Debian-based Raspberry Pi 4 systems. Its purpose is to monitor system health and proactively prevent freezes or crashes caused by resource exhaustion from Docker containers and native systemd services by taking autonomous corrective actions.
+**PiGuard-Hybrid** is an advanced watchdog and lightweight, standalone Python self-monitoring daemon specifically designed for the strict resource constraints of a Raspberry Pi 4 (running Debian/Ubuntu-based OS).
 
-It also features a built-in **Enterprise Web Dashboard** with a modern, "Cyber-Grid Dark" aesthetic to visualize real-time telemetry.
+Its primary objective is to **constantly monitor system health** (RAM, CPU, Disk I/O, Network) and **proactively prevent total freezes or crashes** (often caused by out-of-memory states) by applying autonomous corrective actions on Docker containers and native systemd services. It is not just an alerting tool; it is a "Self-Healing" system.
 
-### ✨ Core Architecture & Features
+It also features a built-in **Enterprise Web Dashboard** ("Cyber-Grid Dark") to visualize real-time metrics and logs.
 
-1. **Hybrid Resource & Process Monitor:**
-   - Reads global hardware metrics (RAM, Swap, CPU Temp, I/O Wait) directly from `/proc` and `/sys`.
-   - Analyzes Network I/O (Rx/Tx throughput, packet drops/errors).
-   - Extracts individual physical drive metrics (perfect for MergerFS pools) including Read/Write speed, IOPS, and queue lengths.
-   - Interfaces with systemd cgroups and Docker stats to precisely identify heavy processes.
+---
 
-2. **Autonomous Mitigation Logic (Self-Healing):**
-   - **Memory Crisis:** If free RAM drops below 10%, it immediately triggers a safe filesystem cache flush (`sync && drop_caches`).
-   - **Smart Remediation:** If free RAM drops below 5%, it identifies the top resource-hogging process (Docker or systemd) and safely restarts it.
-   - Configurable whitelists ensure critical services (e.g., `ssh`, `networking`) are never interrupted.
+### ✨ Architectural Features and Monitoring
 
-3. **Built-in Enterprise Web Dashboard:**
-   - Ultra-lightweight Flask web server running on port `8123`.
-   - Responsive dark theme powered by Tailwind CSS.
-   - Displays widgets for Network Bandwidth, CPU, RAM, and Disk I/O Wait.
-   - Features a "Physical Storage Matrix" to display individual disk performance in real-time with dynamic visual warnings.
-   - Terminal-style flight recorder to view system events and autonomous interventions.
+PiGuard-Hybrid operates on multiple layers to provide a comprehensive overview:
 
-### ⚙️ Installation
+1. **Global Hybrid Monitoring:**
+   - **Memory & CPU:** Reads directly from `/proc/meminfo` and `/proc/stat` for highly accurate, zero-overhead tracking.
+   - **Network I/O:** Parses `/proc/net/dev` to extract instantaneous bandwidth (Rx/Tx) and calculates packet drop rates to detect network congestion.
+   - **Storage & MergerFS Matrix:** Crucial for disk pools (like MergerFS setups). PiGuard doesn't just look at the global mount; it parses `/proc/diskstats` to track the performance of **each underlying physical drive** independently (R/W speeds, IOPS, queue lengths, utilization percentage), instantly isolating whichever drive is causing an I/O Wait bottleneck.
 
-The project includes an automated script that copies files, installs dependencies (like Flask), and sets up the daemon as a systemd service.
+2. **Process Analytics (Systemd & Docker):**
+   - PiGuard interfaces with `systemd-cgtop` for native OS services and `docker stats` for containers.
+   - It unifies these streams into a single universal leaderboard, normalizing the values to pinpoint exactly "who" is starving the system, sortable by Disk I/O or RAM footprint.
+
+---
+
+### 🛡️ Autonomous Mitigation Logic (Self-Healing)
+
+PiGuard intervenes on its own when the system enters a crisis, using a two-tier severity approach:
+
+- **Level 1 - Mild Memory Crisis (Free RAM < 10%):**
+  The daemon automatically triggers a safe filesystem cache flush (`sync && echo 3 > /proc/sys/vm/drop_caches`). This safely resolves heavy file-transfer memory locking without killing services.
+
+- **Level 2 - Critical Memory Crisis (Free RAM < 5%):**
+  If flushing isn't enough, PiGuard autonomously identifies the absolute highest memory-consuming process (whether it's a Docker container or a native service) and **safely restarts it** (`systemctl restart` or `docker restart`).
+
+- **Whitelist Protection:** Via configuration, you can (and should) specify which critical services must **never** be touched (e.g., `ssh.service`, `networking.service`, `docker.service`). PiGuard will always skip these and target the next highest consumer.
+
+---
+
+### 🖥️ Built-in Enterprise Web Dashboard
+
+PiGuard serves an ultra-lightweight, built-in web dashboard driven by Flask.
+- **Default Port:** `8123`
+- **"Cyber-Grid Dark" Design:** A premium, clean, dark-themed UI inspired by Datadog/Grafana (Tailwind CSS + Chart.js).
+- **Physical Storage Matrix:** Every physical disk is rendered as an independent "hardware-blade" that glows amber or crimson if it suffers an I/O stress spike.
+- **System Flight Log:** An integrated terminal emulator displaying a real-time "flight recorder" of system events (network drop warnings, process restarts, cache flushes).
+
+---
+
+### ⚙️ Installation and Configuration
+
+#### 1. Cloning and Setup
+The project includes an automated script that moves the correct files, installs required dependencies (Flask via apt/pip), configures PiGuard as a background systemd daemon, and enables it on boot.
 
 ```bash
-git clone <repository_url> piguard
-cd piguard
+git clone <repository_url>
+cd <repository_folder>
 sudo ./install.sh
 ```
 
-The default configuration is written to `/etc/piguard/config.json`. You can edit this file to change remediation thresholds and manage your service/container whitelists.
+#### 2. Configuration (`config.json`)
+After installation, the setup script generates a file at `/etc/piguard/config.json`. **You must open and edit this file to suit your environment**.
+Configuration Example:
+```json
+{
+    "ram_cache_drop_threshold_percent": 10.0,
+    "ram_remediation_threshold_percent": 5.0,
+    "cpu_temp_threshold_celsius": 85.0,
+    "whitelist_services": [
+        "ssh.service",
+        "sshd.service",
+        "networking.service",
+        "docker.service"
+    ],
+    "whitelist_containers": [
+        "homeassistant",
+        "pihole"
+    ]
+}
+```
 
-Once installed, you can access the web dashboard by navigating to:
-`http://<YOUR_RASPBERRY_IP>:8123`
+#### 3. Management and Logs
+- **Dashboard Access:** Open your browser to `http://<YOUR_RASPBERRY_IP>:8123`
+- **Service Management:** You can start, stop, or restart the background daemon via: `sudo systemctl restart piguard.service`
+- **View Base Logs:** `journalctl -u piguard.service -f`
+- **Persistent Crash Logs:** In the event of critical thresholds being hit, the "flight recorder" will dump the last 5 minutes of high-frequency historical data to `/var/log/piguard_crash.log`.
