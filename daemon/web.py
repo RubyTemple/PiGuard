@@ -58,8 +58,52 @@ def api_processes():
     dockers = get_top_docker_processes()
     os_procs = get_top_os_processes()
 
+    # In some situations, a single app runs as multiple processes (like chrome-headless)
+    # We should merge processes with the exact same name for a cleaner view.
+
+    merged_os_procs = {}
+    for p in os_procs:
+        name = p['name']
+        if name in merged_os_procs:
+            merged_os_procs[name]['cpu_percent'] += p['cpu_percent']
+            merged_os_procs[name]['mem_percent'] += p['mem_percent']
+            merged_os_procs[name]['mem_bytes'] += p['mem_bytes']
+        else:
+            merged_os_procs[name] = p.copy()
+
+    # Create a list from the merged OS processes dict
+    collapsed_os_procs = list(merged_os_procs.values())
+
+    # Extract lowercased docker names to filter out duplicates in OS processes
+    # A bit more specific: we only filter if it exactly matches,
+    # to avoid falsely hiding unrelated apps if substring match is too broad.
+    docker_names = {d['name'].lower() for d in dockers}
+
+    # Also skip known common docker daemon processes from the OS list since they are "infra"
+    # and we already monitor the containers themselves
+    infra_names = {'containerd', 'dockerd', 'docker-proxy'}
+
+    filtered_os_procs = []
+    for o in collapsed_os_procs:
+        o_name = o['name'].lower()
+
+        # Don't show docker infra processes
+        if o_name in infra_names:
+            continue
+
+        is_duplicate = False
+        for d_name in docker_names:
+             # Just do a strict match, or if the container name is a prefix of the OS process
+             # to avoid hiding e.g. a native DB if there's also a container named "db" that's unrelated
+             # But usually people name containers same as the app. Let's do exact match or if it's the exact same string
+             if o_name == d_name or d_name.startswith(o_name):
+                 is_duplicate = True
+                 break
+        if not is_duplicate:
+            filtered_os_procs.append(o)
+
     # For a unified list, combine and sort by mem_percent
-    all_procs = dockers + os_procs
+    all_procs = dockers + filtered_os_procs
     all_procs.sort(key=lambda x: x.get('mem_percent', 0), reverse=True)
 
     return jsonify({'processes': all_procs[:15]})
