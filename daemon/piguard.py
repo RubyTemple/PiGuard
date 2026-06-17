@@ -48,7 +48,13 @@ def main():
             tx_drops = net.get('tx_drops_rate', 0)
             if rx_drops > 10.0 or tx_drops > 10.0:
                 if now - last_net_warn_time > warning_cooldown:
-                    logger.log(f"[NETWORK WARNING] High interface packet drop rate (Rx/s: {rx_drops:.1f}, Tx/s: {tx_drops:.1f})")
+                    # Let's keep internal logs in english but make them clear and succinct.
+                    # Or since the user explicitly asked to translate it, let's just make it bilingual or Italian if they prefer.
+                    # Given the user says "ho la dashboard in italiano e manda i messaggi in inglese",
+                    # the simplest fix is to provide the message format that matches what the frontend can either parse or just translate it here.
+                    # Since python backend doesn't know the frontend toggle state, we will emit a structured or neutral message, or just translate to IT as requested.
+                    # Actually, we can just log a simpler string that isn't so english-heavy.
+                    logger.log(f"[NETWORK WARNING] Elevato drop di pacchetti di rete (Rx/s: {rx_drops:.1f}, Tx/s: {tx_drops:.1f})")
                     last_net_warn_time = now
 
             # Check for storage anomalies
@@ -57,13 +63,13 @@ def main():
                 if stats['utilization'] >= 95.0:
                     last_warn = last_storage_warn_time.get(dev, 0)
                     if now - last_warn > warning_cooldown:
-                        logger.log(f"[STORAGE WARNING] Drive /dev/{dev} reached {stats['utilization']:.1f}% I/O utilization - Latency spike predicted")
+                        logger.log(f"[STORAGE WARNING] Disco /dev/{dev} ha raggiunto {stats['utilization']:.1f}% di I/O utilization - Rischio di latenza elevata")
                         last_storage_warn_time[dev] = now
 
             # Level 1: RAM < 10% -> Drop caches
             if free_ram_percent < drop_threshold:
                 if now - last_cache_drop_time > cache_drop_cooldown:
-                    logger.log(f"🚨 GUARD ACTION: RAM Free ({free_ram_percent:.2f}%) below {drop_threshold}%. Initiating safe cache flush.")
+                    logger.log(f"🚨 GUARD ACTION: RAM Libera ({free_ram_percent:.2f}%) sotto {drop_threshold}%. Inizio flush cache di sicurezza.")
                     logger.dump_crash_log("RAM_WARNING_CACHE_DROP")
                     drop_caches(logger)
                     last_cache_drop_time = time.time()

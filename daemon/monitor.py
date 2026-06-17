@@ -400,13 +400,42 @@ def get_top_docker_processes():
                 try: cpu_perc = float(cpu_perc_str)
                 except: cpu_perc = 0.0
 
+                # We need absolute memory size as well
+                mem_usage_str = data.get('MemUsage', '0B / 0B')
+                # e.g. "400MiB / 8GiB"
+                mem_bytes = 0
+                mem_val_str = mem_usage_str.split(' / ')[0].strip()
+                try:
+                    # simplistic parse
+                    val = float(''.join(c for c in mem_val_str if c.isdigit() or c == '.'))
+                    if 'GiB' in mem_val_str or 'GB' in mem_val_str: val *= 1024 * 1024 * 1024
+                    elif 'MiB' in mem_val_str or 'MB' in mem_val_str: val *= 1024 * 1024
+                    elif 'KiB' in mem_val_str or 'KB' in mem_val_str: val *= 1024
+                    mem_bytes = val
+                except: pass
+
                 block_io = data.get('BlockIO', '0B / 0B')
+                net_io = data.get('NetIO', '0B / 0B')
+
+                # Mock a disk_io_percent based on block_io values
+                # Just for visual consistency as requested, assuming max 1GB throughput
+                disk_io_percent = 0.0
+                try:
+                    val = float(''.join(c for c in block_io.split('/')[0].strip() if c.isdigit() or c == '.'))
+                    if 'GB' in block_io: disk_io_percent = min(100.0, (val * 1024) / 10.24)
+                    elif 'MB' in block_io: disk_io_percent = min(100.0, val / 10.24)
+                    elif 'KB' in block_io: disk_io_percent = min(100.0, (val / 1024) / 10.24)
+                except:
+                    pass
 
                 containers.append({
                     'name': name,
                     'mem_percent': mem_perc,
+                    'mem_bytes': mem_bytes,
                     'cpu_percent': cpu_perc,
                     'disk_io': block_io,
+                    'disk_io_percent': disk_io_percent,
+                    'net_io': net_io,
                     'type': 'docker'
                 })
             except json.JSONDecodeError:
@@ -420,37 +449,87 @@ def get_top_docker_processes():
     except Exception:
         return []
 
+last_os_io_stats = {}
+last_os_io_time = 0
+
 def get_top_os_processes():
     """
     Finds top memory/cpu consuming processes using generic `ps` to capture EVERYTHING natively.
     Returns list of dicts: [{'name': 'process_name', 'mem_bytes': int, 'cpu_percent': float, 'disk_io': str, 'type': 'os'}]
     """
+    global last_os_io_stats, last_os_io_time
+    current_time = time.time()
+
     try:
-        # ps -e -o comm,%cpu,%mem,rss --sort=-%mem | head -n 20
-        res = subprocess.run(['ps', '-e', '-o', 'comm,%cpu,%mem,rss', '--sort=-%mem'], capture_output=True, text=True, timeout=10)
+        # Get PIDs as well to read /proc/[pid]/io
+        res = subprocess.run(['ps', '-e', '-o', 'pid,comm,%cpu,%mem,rss', '--sort=-%mem'], capture_output=True, text=True, timeout=10)
         processes = []
         lines = res.stdout.strip().split('\n')[1:21] # Skip header, get top 20
+
+        current_io_stats = {}
+
         for line in lines:
             parts = line.split()
-            if len(parts) >= 4:
+            if len(parts) >= 5:
+                pid = parts[0]
                 # Name might have spaces, so we merge all but the last 3 cols
-                name = " ".join(parts[:-3])
+                name = " ".join(parts[1:-3])
                 try:
                     cpu_perc = float(parts[-3])
                     mem_perc = float(parts[-2])
                     rss_kb = float(parts[-1])
                     mem_bytes = rss_kb * 1024
 
+                    # Attempt to read /proc/[pid]/io for disk stats
+                    io_str = "-"
+                    try:
+                        with open(f'/proc/{pid}/io', 'r') as f:
+                            read_bytes = 0
+                            write_bytes = 0
+                            for io_line in f:
+                                if io_line.startswith('read_bytes:'):
+                                    read_bytes = int(io_line.split()[1])
+                                elif io_line.startswith('write_bytes:'):
+                                    write_bytes = int(io_line.split()[1])
+
+                            current_io_stats[pid] = {'r': read_bytes, 'w': write_bytes}
+
+                            if last_os_io_time > 0 and pid in last_os_io_stats:
+                                time_diff = current_time - last_os_io_time
+                                if time_diff > 0:
+                                    r_diff = read_bytes - last_os_io_stats[pid]['r']
+                                    w_diff = write_bytes - last_os_io_stats[pid]['w']
+                                    r_rate = r_diff / time_diff
+                                    w_rate = w_diff / time_diff
+
+                                    # Format nicely
+                                    def fmt(b):
+                                        if b > 1024*1024: return f"{b/1024/1024:.1f}MB"
+                                        if b > 1024: return f"{b/1024:.1f}KB"
+                                        return f"{b:.0f}B"
+
+                                    if r_rate > 0 or w_rate > 0:
+                                        io_str = f"{fmt(r_rate)} / {fmt(w_rate)}"
+                    except Exception:
+                        pass # IO reading requires root or might fail if process dies
+
                     processes.append({
                         'name': name,
                         'mem_bytes': mem_bytes,
                         'mem_percent': mem_perc,
                         'cpu_percent': cpu_perc,
-                        'disk_io': '-', # ps doesn't provide easy per-process IO without iotop (requires root/delays)
+                        'disk_io': io_str,
+                        'net_io': '-', # OS processes don't easily expose per-process net IO without root tools like nethogs
                         'type': 'os'
                     })
                 except ValueError:
                     pass
+
+        # Update state only if we advanced time reasonably
+        if current_time - last_os_io_time >= 1.0:
+            last_os_io_stats = current_io_stats
+            last_os_io_time = current_time
+
         return processes
     except Exception:
         return []
