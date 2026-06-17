@@ -479,16 +479,26 @@ def get_top_os_processes():
                 try:
                     with open(f'/proc/{pid}/cgroup', 'r') as f:
                         cgroup_data = f.read()
-                        if 'docker' in cgroup_data or 'kubepods' in cgroup_data or 'containerd' in cgroup_data:
+                        if 'docker' in cgroup_data or 'kubepods' in cgroup_data or 'containerd' in cgroup_data or 'libpod' in cgroup_data:
                             is_docker = True
                 except Exception:
                     pass
+
+                # Fallback: check mountinfo for overlay/containers to catch hidden containers
+                if not is_docker:
+                    try:
+                        with open(f'/proc/{pid}/mountinfo', 'r') as f:
+                            mountinfo = f.read()
+                            if '/docker/overlay' in mountinfo or '/containers/overlay' in mountinfo or 'containerd/io' in mountinfo:
+                                is_docker = True
+                    except Exception:
+                        pass
 
                 if is_docker:
                     continue
 
                 # Name might have spaces, so we merge all but the last 3 cols
-                name = " ".join(parts[1:-3])
+                name = " ".join(parts[1:-3]).strip()
                 try:
                     cpu_perc = float(parts[-3])
                     mem_perc = float(parts[-2])
@@ -496,7 +506,7 @@ def get_top_os_processes():
                     mem_bytes = rss_kb * 1024
 
                     # Attempt to read /proc/[pid]/io for disk stats
-                    io_str = "-"
+                    io_str = "0B / 0B"
                     try:
                         with open(f'/proc/{pid}/io', 'r') as f:
                             read_bytes = 0
@@ -509,10 +519,6 @@ def get_top_os_processes():
 
                             current_io_stats[pid] = {'r': read_bytes, 'w': write_bytes}
 
-                            # Docker 'BlockIO' typically returns cumulative IO, not rate.
-                            # Let's align OS IO with that for a consistent view instead of instantaneous rate,
-                            # or just use cumulative bytes here directly to match Docker stats BlockIO format.
-                            # Format nicely
                             def fmt(b):
                                 if b > 1024*1024*1024: return f"{b/1024/1024/1024:.1f}GB"
                                 if b > 1024*1024: return f"{b/1024/1024:.1f}MB"
@@ -521,7 +527,7 @@ def get_top_os_processes():
 
                             io_str = f"{fmt(read_bytes)} / {fmt(write_bytes)}"
                     except Exception:
-                        pass # IO reading requires root or might fail if process dies
+                        pass # Permission denied if not root, default to 0B / 0B instead of -
 
                     processes.append({
                         'name': name,

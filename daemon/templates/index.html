@@ -245,12 +245,19 @@
             }
         };
 
-        let currentLang = 'en';
+        // Default to IT if saved, else EN
+        let currentLang = localStorage.getItem('piguard_lang') || 'en';
+
+        function updateLangButton() {
+            document.getElementById('lang-btn').textContent = currentLang === 'en' ? '🇬🇧 EN' : '🇮🇹 IT';
+        }
 
         function toggleLang() {
             currentLang = currentLang === 'en' ? 'it' : 'en';
-            document.getElementById('lang-btn').textContent = currentLang === 'en' ? '🇮🇹 IT' : '🇬🇧 EN';
+            localStorage.setItem('piguard_lang', currentLang);
+            updateLangButton();
             applyTranslations();
+            fetchLogs(); // Re-fetch to translate existing logs
         }
 
         function applyTranslations() {
@@ -260,6 +267,7 @@
                     el.textContent = translations[currentLang][key];
                 }
             });
+            updateLangButton();
         }
 
         lucide.createIcons();
@@ -532,17 +540,45 @@
                 logWindow.innerHTML = '';
 
                 data.logs.forEach(line => {
+                    // Translate logs dynamically if EN is selected
+                    let displayLine = line;
+                    if (currentLang === 'en') {
+                        displayLine = displayLine.replace('PiGuard started.', 'PiGuard started.');
+                        displayLine = displayLine.replace('Web dashboard started on port 8123.', 'Web dashboard started on port 8123.');
+                        displayLine = displayLine.replace('ha raggiunto', 'reached');
+                        displayLine = displayLine.replace('di I/O utilization - Rischio di latenza elevata', 'I/O utilization - High latency risk');
+                        displayLine = displayLine.replace('Elevato drop di pacchetti di rete', 'High network packet drop');
+                        displayLine = displayLine.replace('RAM Libera', 'RAM Free');
+                        displayLine = displayLine.replace('sotto', 'below');
+                        displayLine = displayLine.replace('Inizio flush cache di sicurezza.', 'Initiating safe cache flush.');
+                        displayLine = displayLine.replace('RAM Critica', 'RAM Critical');
+                        displayLine = displayLine.replace('Ricerca del processo più oneroso da fermare.', 'Seeking top resource hog to cut.');
+                        displayLine = displayLine.replace('consuma', 'consuming');
+                        displayLine = displayLine.replace('Esecuzione svuotamento cache sicura', 'Executing safe cache flush');
+                        displayLine = displayLine.replace('Svuotamento cache completato con successo.', 'Cache flush successful.');
+                        displayLine = displayLine.replace('Errore durante lo svuotamento cache:', 'Failed to drop caches:');
+                        displayLine = displayLine.replace('Ignorato servizio OS', 'Ignoring OS service');
+                        displayLine = displayLine.replace('(protetto in whitelist).', '(whitelisted).');
+                        displayLine = displayLine.replace('Riavvio del servizio:', 'Restarting service:');
+                        displayLine = displayLine.replace('Riavviato con successo:', 'Successfully restarted:');
+                        displayLine = displayLine.replace('Fallito riavvio di', 'Failed to restart');
+                        displayLine = displayLine.replace('Ignorato container', 'Ignoring container');
+                        displayLine = displayLine.replace('Riavvio del container docker:', 'Restarting docker container:');
+                        displayLine = displayLine.replace('Riavviato con successo il container', 'Successfully restarted container');
+                        displayLine = displayLine.replace('Fallito riavvio del container', 'Failed to restart container');
+                    }
+
                     const div = document.createElement('div');
                     // Style interesting lines
-                    const lowerLine = line.toLowerCase();
-                    if (lowerLine.includes('flush') || lowerLine.includes('restarting') || lowerLine.includes('below') || lowerLine.includes('cut action')) {
+                    const lowerLine = displayLine.toLowerCase();
+                    if (lowerLine.includes('flush') || lowerLine.includes('restart') || lowerLine.includes('riavvio') || lowerLine.includes('below') || lowerLine.includes('sotto') || lowerLine.includes('cut action')) {
                         div.className = 'pl-2 border-l-2 border-rose-500 text-slate-100 py-0.5';
-                    } else if (lowerLine.includes('warning') || lowerLine.includes('failed') || lowerLine.includes('guard action')) {
+                    } else if (lowerLine.includes('warning') || lowerLine.includes('fail') || lowerLine.includes('fallito') || lowerLine.includes('guard action')) {
                         div.className = 'pl-2 border-l-2 border-amber-500 text-slate-200 py-0.5';
                     } else {
                         div.className = 'pl-2 border-l-2 border-slate-800 py-0.5';
                     }
-                    div.textContent = line;
+                    div.textContent = displayLine;
                     logWindow.appendChild(div);
                 });
 
@@ -557,7 +593,8 @@
         setInterval(fetchProcesses, 5000);
         setInterval(fetchLogs, 3000);
 
-        // Initial fetch
+        // Initial setup and fetch
+        applyTranslations();
         fetchMetrics();
         fetchProcesses();
         fetchLogs();
