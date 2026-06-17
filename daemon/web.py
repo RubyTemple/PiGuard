@@ -74,13 +74,9 @@ def api_processes():
     # Create a list from the merged OS processes dict
     collapsed_os_procs = list(merged_os_procs.values())
 
-    # Extract lowercased docker names to filter out duplicates in OS processes
-    # A bit more specific: we only filter if it exactly matches,
-    # to avoid falsely hiding unrelated apps if substring match is too broad.
-    docker_names = {d['name'].lower() for d in dockers}
-
     # Also skip known common docker daemon processes from the OS list since they are "infra"
-    # and we already monitor the containers themselves
+    # and we already monitor the containers themselves.
+    # We no longer need the string-matching heuristic because we check /proc/pid/cgroup in monitor.py directly!
     infra_names = {'containerd', 'dockerd', 'docker-proxy'}
 
     filtered_os_procs = []
@@ -91,16 +87,7 @@ def api_processes():
         if o_name in infra_names:
             continue
 
-        is_duplicate = False
-        for d_name in docker_names:
-             # Just do a strict match, or if the container name is a prefix of the OS process
-             # to avoid hiding e.g. a native DB if there's also a container named "db" that's unrelated
-             # But usually people name containers same as the app. Let's do exact match or if it's the exact same string
-             if o_name == d_name or d_name.startswith(o_name):
-                 is_duplicate = True
-                 break
-        if not is_duplicate:
-            filtered_os_procs.append(o)
+        filtered_os_procs.append(o)
 
     # For a unified list, combine and sort by mem_percent
     all_procs = dockers + filtered_os_procs

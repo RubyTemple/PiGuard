@@ -462,9 +462,10 @@ def get_top_os_processes():
 
     try:
         # Get PIDs as well to read /proc/[pid]/io
+        # Increase the limit slightly because we will filter out Docker processes
         res = subprocess.run(['ps', '-e', '-o', 'pid,comm,%cpu,%mem,rss', '--sort=-%mem'], capture_output=True, text=True, timeout=10)
         processes = []
-        lines = res.stdout.strip().split('\n')[1:21] # Skip header, get top 20
+        lines = res.stdout.strip().split('\n')[1:40] # Skip header, get top 40 to ensure we have enough after filtering
 
         current_io_stats = {}
 
@@ -472,6 +473,20 @@ def get_top_os_processes():
             parts = line.split()
             if len(parts) >= 5:
                 pid = parts[0]
+
+                # Exclude processes that belong to Docker containers to prevent duplicates
+                is_docker = False
+                try:
+                    with open(f'/proc/{pid}/cgroup', 'r') as f:
+                        cgroup_data = f.read()
+                        if 'docker' in cgroup_data or 'kubepods' in cgroup_data or 'containerd' in cgroup_data:
+                            is_docker = True
+                except Exception:
+                    pass
+
+                if is_docker:
+                    continue
+
                 # Name might have spaces, so we merge all but the last 3 cols
                 name = " ".join(parts[1:-3])
                 try:
@@ -494,22 +509,17 @@ def get_top_os_processes():
 
                             current_io_stats[pid] = {'r': read_bytes, 'w': write_bytes}
 
-                            if last_os_io_time > 0 and pid in last_os_io_stats:
-                                time_diff = current_time - last_os_io_time
-                                if time_diff > 0:
-                                    r_diff = read_bytes - last_os_io_stats[pid]['r']
-                                    w_diff = write_bytes - last_os_io_stats[pid]['w']
-                                    r_rate = r_diff / time_diff
-                                    w_rate = w_diff / time_diff
+                            # Docker 'BlockIO' typically returns cumulative IO, not rate.
+                            # Let's align OS IO with that for a consistent view instead of instantaneous rate,
+                            # or just use cumulative bytes here directly to match Docker stats BlockIO format.
+                            # Format nicely
+                            def fmt(b):
+                                if b > 1024*1024*1024: return f"{b/1024/1024/1024:.1f}GB"
+                                if b > 1024*1024: return f"{b/1024/1024:.1f}MB"
+                                if b > 1024: return f"{b/1024:.1f}KB"
+                                return f"{b:.0f}B"
 
-                                    # Format nicely
-                                    def fmt(b):
-                                        if b > 1024*1024: return f"{b/1024/1024:.1f}MB"
-                                        if b > 1024: return f"{b/1024:.1f}KB"
-                                        return f"{b:.0f}B"
-
-                                    if r_rate > 0 or w_rate > 0:
-                                        io_str = f"{fmt(r_rate)} / {fmt(w_rate)}"
+                            io_str = f"{fmt(read_bytes)} / {fmt(write_bytes)}"
                     except Exception:
                         pass # IO reading requires root or might fail if process dies
 
